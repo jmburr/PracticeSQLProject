@@ -1,19 +1,136 @@
-﻿
-Microsoft Visual Studio Solution File, Format Version 12.00
-# SQL Server Management Studio Solution File, Format Version 19.00
-VisualStudioVersion = 15.0.28307.421
-MinimumVisualStudioVersion = 10.0.40219.1
-Global
-	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		Default|Default = Default|Default
-	EndGlobalSection
-	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{D09A8A7C-B660-42CD-9DF9-CCA88EEF2006}.Default|Default.ActiveCfg = Default
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {56BEC153-7E41-4228-BAFE-FC29C196FEF5}
-	EndGlobalSection
-EndGlobal
+Select *
+From PortfolioProjectCovid..CovidDeaths
+Where continent is not null
+Order by 3,4
+
+Select *
+From PortfolioProjectCovid..CovidVaccinations
+Order by 3,4
+
+Select Location, date, total_cases, new_cases, total_deaths, population
+From PortfolioProjectCovid..CovidDeaths
+Order by 1,2
+
+-- Total Cases vs Population - what percentage of pe
+
+Select Location, date, Population, total_cases, (total_cases/population)*100 as PercentPopulationInfected
+From PortfolioProjectCovid..CovidDeaths
+-- Where location like 'canada'
+Order by 1,2
+
+-- Looking at Countries with Highest Infection Rate compared to population
+
+Select Location, Population, Max(total_cases) as HighestInfectionCount, Max((total_cases/population))*100 as PercentPopulationInfected
+From PortfolioProjectCovid..CovidDeaths
+-- Where location like 'canada'
+Group by location, population
+Order by PercentPopulationInfected desc
+
+-- Shwoing countries with the highest death count per population
+
+Select Location, Max(cast(total_deaths as int)) as TotalDeathCount
+From PortfolioProjectCovid..CovidDeaths
+-- Where location like 'canada'
+Where continent is not null
+Group by location
+Order by TotalDeathCount desc
+
+-- Let's break it down by continent
+
+
+-- Shwoing continents with the highest death count per population
+
+Select location, Max(cast(total_deaths as int)) as TotalDeathCount
+From PortfolioProjectCovid..CovidDeaths
+-- Where location like 'canada'
+Where continent is null
+Group by location
+Order by TotalDeathCount desc
+
+-- Global Numbers
+
+Select date, SUM(new_cases) as total_cases, sum(cast(new_deaths as int)) as total_deaths, sum(cast(new_deaths as int))/ SUM(new_cases) * 100 as DeathPercentage
+From PortfolioProjectCovid..CovidDeaths
+-- Where location like 'canada'
+Where continent is not null
+Group by date
+Order by 1,2
+
+-- Looking at Total Population vs Vaccination
+
+
+Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations
+, sum(cast(vac.new_vaccinations as int)) OVER (Partition by dea.location Order by dea.location, dea.date) as RollingPeopleVaccinated
+, (RollingPeopleVaccinated/population)*100
+From PortfolioProjectCovid..CovidDeaths dea
+Join PortfolioProjectCovid..CovidVaccinations vac
+	on dea.location = vac.location
+	and dea.date = vac.date
+Where dea.continent is not null
+Order by 2,3;
+
+-- USE CTE
+
+WITH PopvsVac (Continent, Location, Date, Population, New_Vaccinations, RollingPeopleVaccinated)
+as
+(
+Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations
+, sum(cast(vac.new_vaccinations as int)) OVER (Partition by dea.location Order by dea.location, dea.date) as RollingPeopleVaccinated
+--, (RollingPeople/population)*100
+From PortfolioProjectCovid..CovidDeaths dea
+Join PortfolioProjectCovid..CovidVaccinations vac
+	on dea.location = vac.location
+	and dea.date = vac.date
+Where dea.continent is not null
+-- Order by 2,3
+)
+
+Select *, (RollingPeopleVaccinated/Population)*100
+From PopvsVac
+
+-- Use TEMP table
+DROP Table if exists #PercentPopulationVaccinacted
+Create Table #PercentPopulationVaccinacted
+(
+Continent nvarchar(255),
+Location nvarchar(255),
+Date datetime,
+Population numeric,
+New_vaccinations numeric,
+RollingPeopleVaccinated numeric
+)
+
+
+Insert Into #PercentPopulationVaccinacted
+
+Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations
+, sum(cast(vac.new_vaccinations as int)) OVER (Partition by dea.location Order by dea.location, dea.date) as RollingPeopleVaccinated
+--, (RollingPeople/population)*100
+From PortfolioProjectCovid..CovidDeaths dea
+Join PortfolioProjectCovid..CovidVaccinations vac
+	on dea.location = vac.location
+	and dea.date = vac.date
+Where dea.continent is not null
+-- Order by 2,3
+
+Select *, (RollingPeopleVaccinated/Population)*100
+From #PercentPopulationVaccinacted
+
+
+
+
+
+-- Creating View to store data for later visualizations
+
+Create View PercentPopulationVaccinated as 
+Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations
+, sum(cast(vac.new_vaccinations as int)) OVER (Partition by dea.location Order by dea.location, dea.date) as RollingPeopleVaccinated
+--, (RollingPeople/population)*100
+From PortfolioProjectCovid..CovidDeaths dea
+Join PortfolioProjectCovid..CovidVaccinations vac
+	on dea.location = vac.location
+	and dea.date = vac.date
+Where dea.continent is not null
+
+Select *
+From PercentPopulationVaccinated
